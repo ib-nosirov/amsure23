@@ -6,9 +6,9 @@ from scipy.linalg import norm
 def arnoldi_iteration(A,b,k):
     n = len(b)
     Q = np.zeros((n,k+1))
-    H = np.zeros((k+1,k))
+    H = np.zeros((n,k+1))
 
-    Q[:, 0] = b / norm(b)
+    Q[:,0] = b / norm(b)
 
     for j in range(k):
         v = A @ Q[:,j]
@@ -20,7 +20,7 @@ def arnoldi_iteration(A,b,k):
             break
         Q[:,j+1] = v/H[j+1,j]
 
-    H = H[:k,:]
+    #H = H[:k,:]
     Q = Q[:,:k]
 
     return H
@@ -53,19 +53,20 @@ def gmres(A,f,x,d,k,tol):
     g = S@r
     n = len(x)
     # we will run the full GMRES algorithm
+    # issue: Arnoldi returns a square and it should not.
     H = arnoldi_iteration(A,x,k)
-    print(H.shape)
-    print(S.shape)
     C = S @ H
     Q,R = np.linalg.qr(C)
 #    if np.linalg.cond(R) > tol:
         # form new residual and restart
     # Solve the linear system Ax = x
-    yhat = Q.T @ x
-    xhat = np.linalg.solve(C,yhat)
-    xhat = x + H @ yhat
+    y = Q.T @ g
+    print(C.shape)
+    print(y.shape)
+    x = np.linalg.solve(R,y)
+    x += H @ y
     res = norm((np.eye(n) - Q*Q.T)@g)
-    return xhat, res
+    return x, res
 
 # Example usage
 A = np.random.randn(10,10)
