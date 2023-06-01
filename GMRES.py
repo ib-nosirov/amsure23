@@ -1,55 +1,41 @@
+# import packages
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import norm
 
-
-def arnoldi_iteration(A,V,n):
-    # what should be the shape of my Hessenberg?
-    H = np.zeros((n,n))
-    v = A @ V[:,n]
-    for j in range(n):
-        H[j,n] = V[:,j]@v
-        v -= H[j,n]*V[:,j]
-    H[n,n] = norm(v)
-    if H[n,n] != 0:
-        V[:,n+1] = v/H[n+1,n]
-
-    # Display the matrix using imshow
-    plt.imshow(np.abs(H), cmap='hot', interpolation='nearest')
-    plt.colorbar()
-    plt.show()
-
-    return V,H
-
+# where does the reorthogonalization step come in?
 def gmres(A,b,k):
-    n = A.shape[0]
-    b_norm = norm(b)
-    x = np.zeros(n)
-    #residual = b - A@x
-    #residual_norm = norm(residual)
+    Q,H = arnoldi(A,b,k)
+    e1 = np.zeros(k)
+    e1[0] = norm(b)
+    y,res = np.linalg.lstsq(H[:k,:k],e1)[:2] # what is [:2] for?
+    return Q[:,:k]@y
 
-    # Krylov subspace-at most k iterations
-    V = np.zeros((n,k))
-    # Hessenberg matrix
-    # my personal addition
-    for n in range(1,k+1):
-        V,H = arnoldi_iteration(A,V,n)
-        e1 = np.zeros(n)
-        e1[0] = b_norm 
-        print(H.shape)
-        print(e1.shape)
+def arnoldi(A,b,k):
+    # A matrix
+    # b starting vector
+    # k number of iterations
+    # starts with n=1
+    n = len(b)
+    H = np.zeros((k+1,k))
+    Q = np.zeros((n,k+1)) # why k+1?
+    Q[:,0] = b/norm(b)
+    for i in range(k):
+        v = A @ Q[:,i]
+        for j in range(i+1):
+            q = Q[:,j]
+            H[j,i] = q@v# take a bunch of inner products
+            v -= H[j,i]*q # get a residual
 
-        y, _, _, _ = np.linalg.lstsq(H,e1)
+        H[i+1,i] = norm(v)
+        Q[:,i+1] = v/H[i+1,i]
+    return Q,H
 
-        # same as x_n = V_n @ y, but cheaper
-        print(V[:,n-1])
-        x += V[:,n-1] @ y
-    return x
-
-# Example usage
-A = np.random.randn(10, 10)
-b = np.random.randn(10)
-k = 9
+    # Example usage
+n = 10
+A = np.random.randn(n,n)
+b = np.random.randn(n)
+k = n
 
 x = gmres(A,b,k)
 
