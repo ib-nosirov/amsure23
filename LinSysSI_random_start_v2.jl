@@ -115,12 +115,18 @@ for s=1:q
     println("  norm(b-ABc)/norm(b-Ax) = $(rc_nrm[s]/r_nrm[s])")
 end
 
-plot([1:q], log.(r_nrm),linewidth=2,titlefontsize=30, guidefontsize=30,
-tickfontsize=30)
-plot!([1:q], log.(rc_nrm),linewidth=2,titlefontsize=30, guidefontsize=30,
+plot([1:q], log.(r_nrm),
+title="rc_norm",
+yaxis=:log10,
+xlab="q",
+ylab="Accuracy",
+label=q,
+linewidth=2,
+titlefontsize=30,
+guidefontsize=30,
 tickfontsize=30)
 plot!([1:q], log.(rc_nrm),
-title="Accuracy vs q",
+title="rc_norm",
 yaxis=:log10,
 xlab="q",
 ylab="Accuracy",
