@@ -1,124 +1,127 @@
-using LinearAlgebra
-using Arpack
-using Random
-using Plots
-
-gr(size=(1800,1600))
-
-# TODO:
-#[ gradient descent approx, A inverse*Pi] *note: gradient descent = richardson.
-# actual algorithm
-# [gradient descent approx]
-function OracleSubspace(A,b,ε,q,k,Pi,x_true)
-
-# approximation of the smallest eigenvalues.
-eigvals,eigvecs = eigen(inv(I - ε*A))
-# Sort eigenvalues in descending order
-sorted_indices = sortperm(real(eigvals), rev = true)
-sorted_eigvecs = real(eigvecs[:, sorted_indices])
-
-# Get the q-1 largest eigenvectors
-top_eigvecs = sorted_eigvecs[:,1:q-1]
-#invA = invA[:,:q-1]
-
-error_arr = zeros(q)
-
-y = zeros(size(b))
-
-for j=1:q
-    y += ε*b - ε*A*y
-    full_subspace = hcat(y,top_eigvecs)
-    Q,R = qr(full_subspace)
-    Q = Matrix(Q)
-
-    AQ = A*Q
-    c = (Q'*AQ)\(Q'*b)
-
-    x_approx = Q*c
-
-    error_arr[j] = norm(x_approx-x_true)/norm(x_true)
-end
-
-return error_arr
-end
-
-function RandomStarting(A,b,ε,q,k,Pi,x_true)
-n = size(A,1)
-# Ensure that ε is small enough so that I - ε*A has
-# spectral radius < 1
-eigenvalues = eigvals(I - ε*A)
-spectral_radius = maximum(abs.(eigenvalues))
-if spectral_radius >= 1
-    throw(ArgumentError("Choose a smaller ε such that spectral radius of I - εA
-    is less than 1"))
-end
-
-Y = zeros(n,k)
-Y[:,2:end] = Pi
-
-error_arr = zeros(q)
-
-for j=1:q
-    Y[:,2:end] = (I - ε*A)*Y[:,2:end]
-    Y[:,1] += ε*b - ε*A*Y[:,1]
-
-    Q,R = qr(Y)
-
-    Q = Matrix(Q) # skinny qr
+function Richardson(A,b,h,q,k)
+    n = size(A,1)
     
-    AQ = A*Q
-    c = (Q'*AQ)\(Q'*b)
+    x = zeros(n)
+    
+    r_nrm = zeros(q)
+    rc_nrm = zeros(q)
+    
+    
+    for s=1:q
+    
+        r = b - A*x
+        x = x + h.*r
+    
+        rc = b - A*x
+    
+        rc_nrm[s] = norm(rc)
+    end
+    
+    return rc_nrm
+    end
 
-    x_approx = Q*c
+function LinSysSI(A,b,h,q,k)
+    n = size(A,1)
+    
+    x = zeros(n)
+    Y = randn(n,k)
+    
+    rc_nrm = zeros(q)
+    
+    AB = zeros(n,k+1)
+    AB[:,1:k] = A*Y
+    
+    for s=1:q
+        r = b - A*x
+        x = x + h.*r
+    
+        Y = Y - h.*AB[:,1:k]
+        Q,R = qr(hcat(Y,x))
+        B = Matrix(Q)
+    
+        Y = B[:,1:k]
+    
+        AB = A*B
+        c = (B'*AB)\(B'*b)
+    
+        rc = b - AB*c
+    
+        rc_nrm[s] = norm(rc)
+    end
+    
+    return rc_nrm
+    end
 
-    error_arr[j] = norm(x_approx-x_true)/norm(x_true)
-end
-
-return error_arr
-end
+function RandomStarting(A,b,h,q,k)
+    n = size(A,1)
+    
+    #Y = hcat(Pi,zeros(n))
+    Y = randn(n,k+1)
+    Y[:,end] = zeros(n)
+    
+    rc_nrm = zeros(q)
+    
+    AY = A*Y
+    for s=1:q
+        Y[:,1:k] -= h.*AY[:,1:k]
+    
+        Y[:,end] += h.*(b-AY[:,end])
+        Q,R = qr(Y)
+        Q = Matrix(Q)
+    
+        Y[:,1:k] = Q[:,1:k]
+    
+        AY = A*Y
+        c = (Y'*AY)\(Y'*b)
+    
+        rc = b - AY*c
+    
+        rc_nrm[s] = norm(rc)
+    end
+    
+    return rc_nrm
+    end
 
 # main
-n = 1000
-λ = @. 10 + (1:n)
-A = randn(n,n) + diagm(λ)
-b = randn(n)
-ε = 0.001
-q_arr = 200
-k = 10
-x_true = A\b
-# random sketch matrix
-Pi = randn(n,k-1)
+#Random.seed!(1)
 
-p = plot()
-for q=q_arr
-    oracle_error = OracleSubspace(A,b,ε,q,k,Pi,x_true)
-    plot!(1:length(oracle_error),oracle_error,
-        title="Accuracy vs q",
-        yaxis=:log10,
-        xlab="q",
-        ylab="Accuracy",
-        label=q,
-        linewidth=2,
-        titlefontsize=30,
-        guidefontsize=30,
-        tickfontsize=30)
-end
+#n = 1000
+#λ = @. 10 + (1:n)
+#A = randn(n,n) + diagm(λ)
+#b = randn(n)
+#h = 0.001
+#q = 200
+#k = 20
+#Pi = randn(n,k)
 
-display(p)
+#si_error = LinSysSI(A,b,h,q,k);
+#rs_error = RandomStarting(A,b,h,q,k);
+#ri_error = Richardson(A,b,h,q,k);
 
-p = plot()
-for q=q_arr
-    algo_error = RandomStarting(A,b,ε,q,k,Pi,x_true)
-    plot!(1:length(algo_error),algo_error,
-        title="Accuracy vs q",
-        yaxis=:log10,
-        xlab="q",
-        ylab="Accuracy",
-        label=q,
-        linewidth=2,
-        titlefontsize=30,
-        guidefontsize=30,
-        tickfontsize=30)
-end
+## separate code block for plotting.
+#gr(size=(400,300))
 
-display(p)
+#p = plot()
+
+#plot!(1:size(si_error,1),si_error,
+    #title="Accuracy vs q",
+    #yaxis=:log10,
+    #xlab="q",
+    #ylab="Accuracy",
+    #label="LinSysSI")
+
+#plot!(1:size(rs_error,1),rs_error,
+    #title="Accuracy vs q",
+    #yaxis=:log10,
+    #xlab="q",
+    #ylab="Accuracy",
+    #label="RandomStarting")
+
+#plot!(1:size(ri_error,1),ri_error,
+    #title="Accuracy vs q",
+    #yaxis=:log10,
+    #xlab="q",
+    #ylab="Accuracy",
+    #label="Richardson")
+
+#display(p)
